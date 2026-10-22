@@ -1,0 +1,192 @@
+param(
+    [Parameter(Mandatory = $true)]
+    [string]$Version,
+    [string]$PackId = "TechArchive.SecureFileEraser",
+    [string]$PackTitle = "Secure File Eraser",
+    [string]$Channel = "win",
+    [string]$Runtime = "win-x64",
+    [string]$Configuration = "Release",
+    [string]$MainExe = "SecureFileEraser.exe",
+    [string]$Authors = "TechArchive",
+    [string]$DefaultUpdateSource = "https://tech.trendarchive.io/Utility/SecureFileEraser/",
+    [string]$PublishDir = "",
+    [string]$OutputDir = "",
+    [string]$ReleaseNotes = ""
+)
+
+$ErrorActionPreference = "Stop"
+Set-StrictMode -Version Latest
+
+function Resolve-FullPath {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$BasePath,
+        [Parameter(Mandatory = $true)]
+        [string]$Value
+    )
+
+    if ([string]::IsNullOrWhiteSpace($Value)) {
+        throw "Path value cannot be empty."
+    }
+
+    if ([System.IO.Path]::IsPathRooted($Value)) {
+        return [System.IO.Path]::GetFullPath($Value)
+    }
+
+    return [System.IO.Path]::GetFullPath((Join-Path $BasePath $Value))
+}
+
+function Convert-ToAssemblyVersion {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$SemanticVersion
+    )
+
+    $coreVersion = $SemanticVersion.Split('-', 2)[0]
+    $parts = @($coreVersion.Split('.', [System.StringSplitOptions]::RemoveEmptyEntries))
+
+    if ($parts.Count -eq 0) {
+        throw "Version '$SemanticVersion' is not valid."
+    }
+
+    while ($parts.Count -lt 4) {
+        $parts += "0"
+    }
+
+    if ($parts.Count -gt 4) {
+        $parts = $parts[0..3]
+    }
+
+    foreach ($part in $parts) {
+        if ($part -notmatch '^\d+$') {
+            throw "Version '$SemanticVersion' contains a non-numeric core segment."
+        }
+    }
+
+    return ($parts -join '.')
+}
+
+function Convert-ToFileSafeName {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$Value
+    )
+
+    $safe = $Value -replace '[^A-Za-z0-9]+', '-'
+    return $safe.Trim('-')
+}
+
+$scriptRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
+$repoRoot = Resolve-FullPath -BasePath $scriptRoot -Value ".."
+$projectPath = Resolve-FullPath -BasePath $repoRoot -Value "SecureFileEraser.csproj"
+
+if ([string]::IsNullOrWhiteSpace($PublishDir)) {
+    $PublishDir = "artifacts\publish\$Version\$Runtime"
+}
+
+if ([string]::IsNullOrWhiteSpace($OutputDir)) {
+    $OutputDir = "artifacts\velopack\Releases"
+}
+
+if ([string]::IsNullOrWhiteSpace($ReleaseNotes)) {
+    $ReleaseNotes = "artifacts\velopack\release-notes-$Version.md"
+}
+
+$publishDirPath = Resolve-FullPath -BasePath $repoRoot -Value $PublishDir
+$outputDirPath = Resolve-FullPath -BasePath $repoRoot -Value $OutputDir
+$releaseNotesPath = Resolve-FullPath -BasePath $repoRoot -Value $ReleaseNotes
+$assemblyVersion = Convert-ToAssemblyVersion -SemanticVersion $Version
+$defaultsFilePath = Join-Path $publishDirPath "app-defaults.json"
+
+New-Item -ItemType Directory -Force -Path $publishDirPath | Out-Null
+New-Item -ItemType Directory -Force -Path $outputDirPath | Out-Null
+New-Item -ItemType Directory -Force -Path (Split-Path -Parent $releaseNotesPath) | Out-Null
+
+if (Test-Path $publishDirPath) {
+    Get-ChildItem -LiteralPath $publishDirPath -Force | Remove-Item -Recurse -Force -ErrorAction SilentlyContinue
+}
+
+if (-not (Test-Path $releaseNotesPath)) {
+    @(
+        "# Secure File Eraser $Version"
+        ""
+        "- Initial packaged release."
+    ) | Set-Content -Path $releaseNotesPath -Encoding UTF8
+}
+
+Write-Host "1/4 dotnet tool restore"
+Push-Location $repoRoot
+try {
+    dotnet tool restore --ignore-failed-sources
+    if ($LASTEXITCODE -ne 0) {
+        throw "dotnet tool restore failed."
+    }
+
+    Write-Host "2/4 dotnet restore"
+    dotnet restore $projectPath -r $Runtime --ignore-failed-sources
+    if ($LASTEXITCODE -ne 0) {
+        throw "dotnet restore failed."
+    }
+
+    Write-Host "3/4 dotnet publish"
+    dotnet publish $projectPath `
+        -c $Configuration `
+        -r $Runtime `
+        --self-contained true `
+        --no-restore `
+        -p:Version=$Version `
+        -p:AssemblyVersion=$assemblyVersion `
+        -p:FileVersion=$assemblyVersion `
+        -p:InformationalVersion=$Version `
+        -p:PublishSingleFile=false `
+        -o $publishDirPath
+    if ($LASTEXITCODE -ne 0) {
+        throw "dotnet publish failed."
+    }
+
+    if ([string]::IsNullOrWhiteSpace($DefaultUpdateSource)) {
+        $DefaultUpdateSource = $outputDirPath
+    }
+
+    @{
+        DefaultUpdateSource = $DefaultUpdateSource
+    } | ConvertTo-Json | Set-Content -Path $defaultsFilePath -Encoding UTF8
+
+    Get-ChildItem -LiteralPath $publishDirPath -Filter "*.pdb" -File -ErrorAction SilentlyContinue |
+        Remove-Item -Force -ErrorAction SilentlyContinue
+
+    Write-Host "4/4 vpk pack"
+    dotnet tool run vpk pack `
+        --packId $PackId `
+        --packVersion $Version `
+        --packDir $publishDirPath `
+        --mainExe $MainExe `
+        --packAuthors $Authors `
+        --packTitle $PackTitle `
+        --channel $Channel `
+        --runtime $Runtime `
+        --releaseNotes $releaseNotesPath `
+        --outputDir $outputDirPath `
+        --shortcuts "Desktop,StartMenuRoot"
+    if ($LASTEXITCODE -ne 0) {
+        throw "vpk pack failed."
+    }
+}
+finally {
+    Pop-Location
+}
+
+$setupFileName = "$PackId-$Channel-Setup.exe"
+$setupFilePath = Join-Path $outputDirPath $setupFileName
+if (Test-Path $setupFilePath) {
+    $versionedSetupName = "{0}-Setup-{1}.exe" -f (Convert-ToFileSafeName -Value $PackTitle), $Version
+    $versionedSetupPath = Join-Path $outputDirPath $versionedSetupName
+    Copy-Item -LiteralPath $setupFilePath -Destination $versionedSetupPath -Force
+    Write-Host "Versioned setup : $versionedSetupPath"
+}
+
+Write-Host ""
+Write-Host "Velopack release complete."
+Write-Host "Publish files : $publishDirPath"
+Write-Host "Release feed  : $outputDirPath"
+Write-Host "Update source : $DefaultUpdateSource"

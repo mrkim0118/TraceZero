@@ -1,0 +1,31 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <UseWPF>true</UseWPF>
+    <RootNamespace>SecureFileEraser</RootNamespace>
+    <AssemblyName>SecureFileEraser</AssemblyName>
+    <StartupObject>SecureFileEraser.App</StartupObject>
+    <Company>TechArchive</Company>
+    <Authors>TechArchive</Authors>
+    <Product>Secure File Eraser</Product>
+    <Title>Secure File Eraser</Title>
+    <Description>Best-effort secure file deletion utility for Windows.</Description>
+    <Version>1.1.6</Version>
+    <AssemblyVersion>1.1.6.0</AssemblyVersion>
+    <FileVersion>1.1.6.0</FileVersion>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ApplicationDefinition Remove="App.xaml" />
+    <Page Include="App.xaml" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Velopack" Version="0.0.1298" />
+  </ItemGroup>
+
+</Project>
