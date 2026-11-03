@@ -6,7 +6,9 @@ Windows WPF utility for best-effort secure deletion of multiple files.
 
 - Select multiple files at once with the file picker.
 - Drag and drop files or folders into the window.
-- Overwrite file contents before deletion with 1, 3, or 7 passes.
+- Overwrite file contents with 7 passes before deletion.
+- Clean NTFS alternate data streams, timestamps, and file size metadata.
+- Wipe free space on a selected drive.
 - Obfuscate the file name multiple times before the final delete.
 - Check for Velopack updates from the installed app.
 - Review live progress and export the deletion log.
@@ -26,6 +28,8 @@ dotnet run --project C:\Users\mrkim\Desktop\Program\SecureFileEraser\SecureFileE
 ```powershell
 powershell -ExecutionPolicy Bypass -File C:\Users\mrkim\Desktop\Program\SecureFileEraser\scripts\Publish-Velopack.ps1 -Version 1.1.0
 ```
+
+The installer is framework-dependent and requires the .NET 8 Desktop Runtime x64 on the target PC. Release packages do not include PDB debug symbols.
 
 The script creates:
 

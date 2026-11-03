@@ -132,12 +132,14 @@ try {
     dotnet publish $projectPath `
         -c $Configuration `
         -r $Runtime `
-        --self-contained true `
+        --self-contained false `
         --no-restore `
         -p:Version=$Version `
         -p:AssemblyVersion=$assemblyVersion `
         -p:FileVersion=$assemblyVersion `
         -p:InformationalVersion=$Version `
+        -p:DebugType=None `
+        -p:DebugSymbols=false `
         -p:PublishSingleFile=false `
         -o $publishDirPath
     if ($LASTEXITCODE -ne 0) {
