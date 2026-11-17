@@ -63,6 +63,7 @@ public sealed class FileDeletionItem : INotifyPropertyChanged
         CurrentStep = currentStep;
         TotalSteps = totalSteps;
         StatusDetail = detail;
+        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(StatusKind)));
         Status = displayText;
     }
 

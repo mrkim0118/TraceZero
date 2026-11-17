@@ -1,7 +1,6 @@
 using System.Collections.ObjectModel;
 using System.Collections.Specialized;
 using System.ComponentModel;
-using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Reflection;
@@ -187,16 +186,6 @@ public partial class MainWindow : Window, INotifyPropertyChanged
     {
         Ui.ToggleLanguage();
         Log(T("LogLanguageChangedFormat", Ui.IsEnglish ? T("CurrentLanguageEnglish") : T("CurrentLanguageKorean")));
-    }
-
-    private void HomepageButton_Click(object sender, RoutedEventArgs e)
-    {
-        OpenExternalUrl(AppLinks.HomepageUrl);
-    }
-
-    private void DonateButton_Click(object sender, RoutedEventArgs e)
-    {
-        OpenExternalUrl(AppLinks.DonateUrl);
     }
 
     private void AddFilesButton_Click(object sender, RoutedEventArgs e)
@@ -1003,7 +992,6 @@ public partial class MainWindow : Window, INotifyPropertyChanged
     {
         Title = T("WindowTitle");
         NameColumn.Header = T("FileNameHeader");
-        PathColumn.Header = T("FilePathHeader");
         SizeColumn.Header = T("FileSizeHeader");
         StatusColumn.Header = T("FileStatusHeader");
 
@@ -1134,22 +1122,6 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             FileQueueStatusKind.Failed => T("QueueStatusFailedFormat", detail ?? "Unknown error"),
             _ => T("QueueStatusQueued"),
         };
-    }
-
-    private void OpenExternalUrl(string url)
-    {
-        try
-        {
-            Process.Start(new ProcessStartInfo
-            {
-                FileName = url,
-                UseShellExecute = true,
-            });
-        }
-        catch (Exception ex)
-        {
-            MessageBox.Show(this, T("ErrorOpenLinkFormat", ex.Message), T("ErrorTitle"), MessageBoxButton.OK, MessageBoxImage.Error);
-        }
     }
 
     private string T(string key)

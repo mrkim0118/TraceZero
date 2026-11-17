@@ -169,6 +169,7 @@ try {
         --runtime $Runtime `
         --releaseNotes $releaseNotesPath `
         --outputDir $outputDirPath `
+        --icon (Join-Path $repoRoot "Assets\TraceZero.ico") `
         --shortcuts "Desktop,StartMenuRoot"
     if ($LASTEXITCODE -ne 0) {
         throw "vpk pack failed."
