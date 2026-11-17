@@ -7,11 +7,14 @@ param(
     [string]$Runtime = "win-x64",
     [string]$Configuration = "Release",
     [string]$MainExe = "TraceZero.exe",
-    [string]$Authors = "TechArchive",
+    [string]$Authors = "Manggdy",
     [string]$DefaultUpdateSource = "https://tech.trendarchive.io/Utility/TraceZero/",
     [string]$PublishDir = "",
     [string]$OutputDir = "",
-    [string]$ReleaseNotes = ""
+    [string]$ReleaseNotes = "",
+    # Code signing: subject of a code-signing certificate in Cert:\CurrentUser\My. Empty string skips signing.
+    [string]$SignSubject = "CN=Manggdy",
+    [string]$TimestampUrl = "http://timestamp.digicert.com"
 )
 
 $ErrorActionPreference = "Stop"
@@ -157,8 +160,21 @@ try {
     Get-ChildItem -LiteralPath $publishDirPath -Filter "*.pdb" -File -ErrorAction SilentlyContinue |
         Remove-Item -Force -ErrorAction SilentlyContinue
 
+    $signArgs = @()
+    if (-not [string]::IsNullOrWhiteSpace($SignSubject)) {
+        $cert = Get-ChildItem Cert:\CurrentUser\My -CodeSigningCert |
+            Where-Object { $_.Subject -eq $SignSubject -and $_.NotAfter -gt (Get-Date) } |
+            Sort-Object NotAfter -Descending |
+            Select-Object -First 1
+        if (-not $cert) {
+            throw "No valid code-signing certificate '$SignSubject' in Cert:\CurrentUser\My. Pass -SignSubject '' to build unsigned."
+        }
+        $signArgs = @("--signParams", "/fd sha256 /sha1 $($cert.Thumbprint) /s My /tr $TimestampUrl /td sha256")
+        Write-Host "Signing with $SignSubject ($($cert.Thumbprint))"
+    }
+
     Write-Host "4/4 vpk pack"
-    dotnet tool run vpk pack `
+    dotnet tool run vpk pack @signArgs `
         --packId $PackId `
         --packVersion $Version `
         --packDir $publishDirPath `

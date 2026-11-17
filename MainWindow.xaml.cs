@@ -81,10 +81,11 @@ public partial class MainWindow : Window, INotifyPropertyChanged
 
         Log(T("LogReady"));
         Log(T("LogSsd"));
-        if (_appUpdateService is not null)
-        {
-            Log(T("LogUpdateFeedConfigured", _appUpdateService.UpdateSource));
-        }
+        // Auto update is disabled; see Window_Loaded.
+        // if (_appUpdateService is not null)
+        // {
+        //     Log(T("LogUpdateFeedConfigured", _appUpdateService.UpdateSource));
+        // }
 
         Loaded += (_, _) => StartupDiagnostics.Log("MainWindow Loaded event fired.");
         ContentRendered += (_, _) => StartupDiagnostics.Log("MainWindow ContentRendered event fired.");
@@ -178,8 +179,11 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         }
 
         _startupUpdateCheckPending = false;
-        await Task.Delay(700);
-        await CheckForUpdatesAsync(silentWhenNoUpdate: true);
+
+        // Auto update is disabled until an update feed is hosted. Uncomment to re-enable the startup check.
+        // await Task.Delay(700);
+        // await CheckForUpdatesAsync(silentWhenNoUpdate: true);
+        await Task.CompletedTask;
     }
 
     private void ToggleLanguageButton_Click(object sender, RoutedEventArgs e)

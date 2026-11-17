@@ -37,7 +37,6 @@
 - Wipe free space on a selected drive, including free NTFS MFT records.
 - Compact window with live progress, status per file, and an exportable log.
 - Korean and English UI.
-- Velopack auto-update for the installed app.
 
 ## Verification
 
