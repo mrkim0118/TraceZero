@@ -1,6 +1,6 @@
 using Velopack;
 
-namespace SecureFileEraser.Services;
+namespace TraceZero.Services;
 
 public enum AppUpdateStatus
 {

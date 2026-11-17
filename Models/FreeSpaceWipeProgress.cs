@@ -1,4 +1,4 @@
-namespace SecureFileEraser.Models;
+namespace TraceZero.Models;
 
 public sealed record FreeSpaceWipeProgress(
     double Percent,

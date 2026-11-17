@@ -6,13 +6,13 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <UseWPF>true</UseWPF>
-    <RootNamespace>SecureFileEraser</RootNamespace>
-    <AssemblyName>SecureFileEraser</AssemblyName>
-    <StartupObject>SecureFileEraser.App</StartupObject>
+    <RootNamespace>TraceZero</RootNamespace>
+    <AssemblyName>TraceZero</AssemblyName>
+    <StartupObject>TraceZero.App</StartupObject>
     <Company>TechArchive</Company>
     <Authors>TechArchive</Authors>
-    <Product>Secure File Eraser</Product>
-    <Title>Secure File Eraser</Title>
+    <Product>TraceZero</Product>
+    <Title>TraceZero</Title>
     <Description>Best-effort secure file deletion utility for Windows.</Description>
     <Version>1.1.6</Version>
     <AssemblyVersion>1.1.6.0</AssemblyVersion>
@@ -24,6 +24,12 @@
     <DebugSymbols>false</DebugSymbols>
     <SelfContained>false</SelfContained>
   </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Remove="tests/**" />
+    <Page Remove="tests/**" />
+    <None Remove="tests/**" />
+  </ItemGroup>
 
   <ItemGroup>
     <ApplicationDefinition Remove="App.xaml" />

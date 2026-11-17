@@ -1,7 +1,7 @@
 using System.IO;
 using System.Text.Json;
 
-namespace SecureFileEraser.Services;
+namespace TraceZero.Services;
 
 internal static class AppRuntimeDefaults
 {

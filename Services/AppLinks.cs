@@ -1,4 +1,4 @@
-namespace SecureFileEraser.Services;
+namespace TraceZero.Services;
 
 internal static class AppLinks
 {

@@ -1,4 +1,4 @@
-namespace SecureFileEraser.Models;
+namespace TraceZero.Models;
 
 public enum FileQueueStatusKind
 {
@@ -12,6 +12,7 @@ public enum FileQueueStatusKind
     Renaming,
     Deleting,
     Completed,
+    CompletedWithResidue,
     Cancelled,
     Failed,
 }

@@ -1,7 +1,7 @@
 using System.ComponentModel;
 using System.IO;
 
-namespace SecureFileEraser.Models;
+namespace TraceZero.Models;
 
 public sealed class FileDeletionItem : INotifyPropertyChanged
 {

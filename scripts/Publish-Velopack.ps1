@@ -1,14 +1,14 @@
 param(
     [Parameter(Mandatory = $true)]
     [string]$Version,
-    [string]$PackId = "TechArchive.SecureFileEraser",
-    [string]$PackTitle = "Secure File Eraser",
+    [string]$PackId = "TechArchive.TraceZero",
+    [string]$PackTitle = "TraceZero",
     [string]$Channel = "win",
     [string]$Runtime = "win-x64",
     [string]$Configuration = "Release",
-    [string]$MainExe = "SecureFileEraser.exe",
+    [string]$MainExe = "TraceZero.exe",
     [string]$Authors = "TechArchive",
-    [string]$DefaultUpdateSource = "https://tech.trendarchive.io/Utility/SecureFileEraser/",
+    [string]$DefaultUpdateSource = "https://tech.trendarchive.io/Utility/TraceZero/",
     [string]$PublishDir = "",
     [string]$OutputDir = "",
     [string]$ReleaseNotes = ""
@@ -78,7 +78,7 @@ function Convert-ToFileSafeName {
 
 $scriptRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
 $repoRoot = Resolve-FullPath -BasePath $scriptRoot -Value ".."
-$projectPath = Resolve-FullPath -BasePath $repoRoot -Value "SecureFileEraser.csproj"
+$projectPath = Resolve-FullPath -BasePath $repoRoot -Value "TraceZero.csproj"
 
 if ([string]::IsNullOrWhiteSpace($PublishDir)) {
     $PublishDir = "artifacts\publish\$Version\$Runtime"
@@ -108,7 +108,7 @@ if (Test-Path $publishDirPath) {
 
 if (-not (Test-Path $releaseNotesPath)) {
     @(
-        "# Secure File Eraser $Version"
+        "# TraceZero $Version"
         ""
         "- Initial packaged release."
     ) | Set-Content -Path $releaseNotesPath -Encoding UTF8

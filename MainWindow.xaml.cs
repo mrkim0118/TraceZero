@@ -8,11 +8,11 @@ using System.Reflection;
 using System.Windows;
 using System.Windows.Input;
 using Microsoft.Win32;
-using SecureFileEraser.Models;
-using SecureFileEraser.Services;
+using TraceZero.Models;
+using TraceZero.Services;
 using Velopack;
 
-namespace SecureFileEraser;
+namespace TraceZero;
 
 internal enum UpdateUiState
 {
@@ -32,9 +32,11 @@ internal enum UpdateUiState
 
 public partial class MainWindow : Window, INotifyPropertyChanged
 {
-    private const int StrongDeletePassCount = 7;
+    // NIST SP 800-88: one random pass defeats recovery on modern drives; more passes only cost time and SSD wear.
+    private const int OverwritePassCount = 1;
     private readonly SecureDeleteService _secureDeleteService = new();
     private readonly FreeSpaceWipeService _freeSpaceWipeService = new();
+    private readonly TraceCleanupService _traceCleanupService = new();
     private readonly AppUpdateService? _appUpdateService;
     private readonly string _configuredUpdateSource;
     private readonly UiTextProvider _ui = new();
@@ -241,7 +243,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         }
 
         var completedItems = Files
-            .Where(item => item.StatusKind is FileQueueStatusKind.Completed or FileQueueStatusKind.Missing)
+            .Where(item => item.StatusKind is FileQueueStatusKind.Completed or FileQueueStatusKind.CompletedWithResidue or FileQueueStatusKind.Missing)
             .ToList();
 
         if (completedItems.Count == 0)
@@ -414,10 +416,16 @@ public partial class MainWindow : Window, INotifyPropertyChanged
 
         var totalBytes = targets.Sum(item => item.Size);
         var overwriteLabel = T("PassStrong");
+        var cloudCount = targets.Count(item => TraceCleanupService.IsInCloudSyncFolder(item.FullPath));
+        var confirmMessage = T("DeleteConfirmMessage", targets.Count, FileDeletionItem.FormatBytes(totalBytes), overwriteLabel);
+        if (cloudCount > 0)
+        {
+            confirmMessage += T("CloudSyncWarningFormat", cloudCount);
+        }
 
         var confirmation = MessageBox.Show(
             this,
-            T("DeleteConfirmMessage", targets.Count, FileDeletionItem.FormatBytes(totalBytes), overwriteLabel),
+            confirmMessage,
             T("DeleteConfirmTitle"),
             MessageBoxButton.OKCancel,
             MessageBoxImage.Warning);
@@ -427,6 +435,13 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             return;
         }
 
+        var runTraceCleanup = MessageBox.Show(
+            this,
+            T("TraceCleanupPrompt"),
+            T("TraceCleanupTitle"),
+            MessageBoxButton.YesNo,
+            MessageBoxImage.Question) == MessageBoxResult.Yes;
+
         IsDeleting = true;
         OverallProgress = 0;
         StatusText = T("StatusDeleting");
@@ -434,32 +449,50 @@ public partial class MainWindow : Window, INotifyPropertyChanged
 
         var successCount = 0;
         var failureCount = 0;
+        var erasedPaths = new List<string>();
 
         try
         {
             for (var index = 0; index < targets.Count; index++)
             {
                 var item = targets[index];
+                var position = index;
                 SetItemStatus(item, FileQueueStatusKind.Preparing);
 
                 var progress = new Progress<SecureDeleteProgress>(report =>
                 {
                     ApplyDeletionProgress(item, report);
-                    StatusText = T("StatusProcessingFormat", index + 1, targets.Count, item.Name, item.Status);
-                    OverallProgress = ((index + (report.Percent / 100d)) / targets.Count) * 100d;
+                    StatusText = T("StatusProcessingFormat", position + 1, targets.Count, item.Name, item.Status);
+                    OverallProgress = ((position + (report.Percent / 100d)) / targets.Count) * 100d;
                 });
 
                 try
                 {
-                    await _secureDeleteService.DeleteFileAsync(
+                    var outcome = await _secureDeleteService.DeleteFileAsync(
                         item.FullPath,
-                        StrongDeletePassCount,
+                        OverwritePassCount,
                         progress,
                         _deletionCts.Token);
 
-                    SetItemStatus(item, FileQueueStatusKind.Completed);
                     successCount++;
-                    Log(T("LogCompletedFormat", item.FullPath));
+                    erasedPaths.Add(item.FullPath);
+                    switch (outcome)
+                    {
+                        case SecureDeleteOutcome.ErasedWithResidueRisk:
+                            SetItemStatus(item, FileQueueStatusKind.CompletedWithResidue);
+                            Log(T("LogResidueWarningFormat", item.FullPath));
+                            break;
+                        case SecureDeleteOutcome.LinkRemoved:
+                            SetItemStatus(item, FileQueueStatusKind.Completed);
+                            Log(T("LogLinkRemovedFormat", item.FullPath));
+                            break;
+                        default:
+                            SetItemStatus(item, FileQueueStatusKind.Completed);
+                            Log(T("LogCompletedFormat", item.FullPath));
+                            break;
+                    }
+
+                    await EraseRecentShortcutAsync(item.FullPath);
                 }
                 catch (OperationCanceledException)
                 {
@@ -489,8 +522,76 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         {
             _deletionCts?.Dispose();
             _deletionCts = null;
+        }
+
+        try
+        {
+            // Runs after a cancel too: files erased before the cancel still left snapshots and journal entries.
+            if (runTraceCleanup && erasedPaths.Count > 0)
+            {
+                await RunTraceCleanupAsync(erasedPaths);
+            }
+
+            if (erasedPaths.Count > 0)
+            {
+                Log(T("LogFreeSpaceWipeRecommended"));
+            }
+        }
+        finally
+        {
             IsDeleting = false;
             RefreshSummary();
+        }
+    }
+
+    private async Task RunTraceCleanupAsync(IReadOnlyList<string> erasedPaths)
+    {
+        var statusBefore = StatusText;
+        StatusText = T("StatusTraceCleanup");
+        Log(T("LogTraceCleanupStarted"));
+        try
+        {
+            var output = await _traceCleanupService.RunElevatedAsync(erasedPaths, CancellationToken.None);
+            if (output is null)
+            {
+                Log(T("LogTraceCleanupDeclined"));
+                return;
+            }
+
+            foreach (var line in output.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+            {
+                Log(line);
+            }
+
+            Log(T("LogTraceCleanupDone"));
+        }
+        catch (Exception ex)
+        {
+            Log(T("LogTraceCleanupFailedFormat", ex.Message));
+        }
+        finally
+        {
+            StatusText = statusBefore;
+        }
+    }
+
+    // The Recent shortcut stores the erased file's full path; erase it the same way so no trace of the name remains.
+    private async Task EraseRecentShortcutAsync(string erasedPath)
+    {
+        var shortcutPath = TraceCleanupService.GetRecentShortcutPath(erasedPath);
+        if (!File.Exists(shortcutPath))
+        {
+            return;
+        }
+
+        try
+        {
+            await _secureDeleteService.DeleteFileAsync(shortcutPath, OverwritePassCount, null, CancellationToken.None);
+            Log(T("LogRecentShortcutErasedFormat", shortcutPath));
+        }
+        catch (Exception ex)
+        {
+            Log(T("LogFailedFormat", shortcutPath, ex.Message));
         }
     }
 
@@ -854,6 +955,13 @@ public partial class MainWindow : Window, INotifyPropertyChanged
 
             foreach (var childDirectory in childDirectories)
             {
+                // Junctions and directory symlinks point outside the dropped folder (and can loop), so never follow them.
+                if (new DirectoryInfo(childDirectory).Attributes.HasFlag(FileAttributes.ReparsePoint))
+                {
+                    Log(T("LogSkippedLinkFolderFormat", childDirectory));
+                    continue;
+                }
+
                 pendingDirectories.Push(childDirectory);
             }
         }
@@ -1021,6 +1129,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             FileQueueStatusKind.Renaming => T("QueueStatusRenameFormat", currentStep, totalSteps),
             FileQueueStatusKind.Deleting => T("QueueStatusDeleting"),
             FileQueueStatusKind.Completed => T("QueueStatusCompleted"),
+            FileQueueStatusKind.CompletedWithResidue => T("QueueStatusCompletedResidue"),
             FileQueueStatusKind.Cancelled => T("QueueStatusCancelled"),
             FileQueueStatusKind.Failed => T("QueueStatusFailedFormat", detail ?? "Unknown error"),
             _ => T("QueueStatusQueued"),

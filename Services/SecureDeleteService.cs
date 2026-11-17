@@ -2,9 +2,9 @@ using System.Buffers;
 using System.IO;
 using System.Runtime.InteropServices;
 using System.Security.Cryptography;
-using SecureFileEraser.Models;
+using TraceZero.Models;
 
-namespace SecureFileEraser.Services;
+namespace TraceZero.Services;
 
 public sealed class SecureDeleteService
 {
@@ -13,7 +13,13 @@ public sealed class SecureDeleteService
     private const int MaxStreamPathLength = 32767;
     private static readonly DateTime MetadataBaseUtc = new(2000, 1, 1, 0, 0, 0, DateTimeKind.Utc);
 
-    public async Task DeleteFileAsync(
+    // Compressed, encrypted and sparse NTFS files write new data to new clusters, so the old clusters keep the original.
+    private const FileAttributes RelocatingAttributes = FileAttributes.Compressed | FileAttributes.Encrypted | FileAttributes.SparseFile;
+
+    // Below one MFT record the data may live inside the record itself; extending it would move it out and leave the original bytes behind.
+    private const long ResidentDataLimit = 1024;
+
+    public async Task<SecureDeleteOutcome> DeleteFileAsync(
         string filePath,
         int passCount,
         IProgress<SecureDeleteProgress>? progress,
@@ -33,6 +39,16 @@ public sealed class SecureDeleteService
         }
 
         progress?.Report(new SecureDeleteProgress(SecureDeleteStage.Preparing, 2));
+
+        // Opening a symbolic link for writing would overwrite the file it points to, which the user never queued.
+        if (fileInfo.LinkTarget is not null)
+        {
+            File.Delete(fileInfo.FullName);
+            progress?.Report(new SecureDeleteProgress(SecureDeleteStage.Completed, 100));
+            return SecureDeleteOutcome.LinkRemoved;
+        }
+
+        var mayLeaveResidue = (fileInfo.Attributes & RelocatingAttributes) != 0;
         File.SetAttributes(fileInfo.FullName, FileAttributes.Normal);
 
         var alternateStreams = EnumerateAlternateDataStreams(fileInfo.FullName).ToList();
@@ -66,7 +82,7 @@ public sealed class SecureDeleteService
         {
             await OverwritePathAsync(
                 fileInfo.FullName,
-                fileInfo.Length,
+                RoundUpToClusterEnd(fileInfo.FullName, fileInfo.Length),
                 passCount,
                 progress,
                 cancellationToken,
@@ -82,6 +98,30 @@ public sealed class SecureDeleteService
         progress?.Report(new SecureDeleteProgress(SecureDeleteStage.Deleting, 96));
         File.Delete(obfuscatedPath);
         progress?.Report(new SecureDeleteProgress(SecureDeleteStage.Completed, 100));
+        return mayLeaveResidue ? SecureDeleteOutcome.ErasedWithResidueRisk : SecureDeleteOutcome.Erased;
+    }
+
+    // The last cluster past end-of-file can still hold older content of this file, so overwrite up to the cluster boundary.
+    private static long RoundUpToClusterEnd(string filePath, long length)
+    {
+        var root = Path.GetPathRoot(filePath);
+        if (length < ResidentDataLimit || string.IsNullOrEmpty(root))
+        {
+            return length;
+        }
+
+        if (!root.EndsWith('\\'))
+        {
+            root += '\\';
+        }
+
+        if (!GetDiskFreeSpaceW(root, out var sectorsPerCluster, out var bytesPerSector, out _, out _))
+        {
+            return length;
+        }
+
+        long clusterSize = (long)sectorsPerCluster * bytesPerSector;
+        return clusterSize <= 0 ? length : (length + clusterSize - 1) / clusterSize * clusterSize;
     }
 
     private static async Task OverwritePathAsync(
@@ -311,4 +351,12 @@ public sealed class SecureDeleteService
 
     [DllImport("kernel32.dll", SetLastError = true)]
     private static extern bool FindClose(IntPtr handle);
+
+    [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+    private static extern bool GetDiskFreeSpaceW(
+        string rootPathName,
+        out uint sectorsPerCluster,
+        out uint bytesPerSector,
+        out uint numberOfFreeClusters,
+        out uint totalNumberOfClusters);
 }

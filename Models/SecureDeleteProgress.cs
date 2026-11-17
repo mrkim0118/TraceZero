@@ -1,4 +1,4 @@
-namespace SecureFileEraser.Models;
+namespace TraceZero.Models;
 
 public enum SecureDeleteStage
 {
@@ -10,6 +10,17 @@ public enum SecureDeleteStage
     Renaming,
     Deleting,
     Completed,
+}
+
+public enum SecureDeleteOutcome
+{
+    Erased,
+
+    // Compressed, encrypted or sparse file: the original data may still sit in free space until it is wiped.
+    ErasedWithResidueRisk,
+
+    // A symbolic link: only the link was removed, the file it points to was not touched.
+    LinkRemoved,
 }
 
 public sealed record SecureDeleteProgress(

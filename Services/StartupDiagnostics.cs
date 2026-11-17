@@ -2,13 +2,13 @@ using System;
 using System.IO;
 using System.Text;
 
-namespace SecureFileEraser.Services;
+namespace TraceZero.Services;
 
 internal static class StartupDiagnostics
 {
     private static readonly object Sync = new();
     private static readonly string LogDirectory =
-        Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "TechArchive", "SecureFileEraser");
+        Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "TechArchive", "TraceZero");
     private static readonly string LogPath = Path.Combine(LogDirectory, "startup.log");
 
     public static string CurrentLogPath => LogPath;

@@ -1,10 +1,10 @@
 using System;
 using System.Windows;
 using System.Windows.Threading;
-using SecureFileEraser.Services;
+using TraceZero.Services;
 using Velopack;
 
-namespace SecureFileEraser;
+namespace TraceZero;
 
 public partial class App : Application
 {
@@ -42,7 +42,7 @@ public partial class App : Application
         StartupDiagnostics.LogException("DispatcherUnhandledException", e.Exception);
         MessageBox.Show(
             $"프로그램 시작 중 오류가 발생했습니다.\n\n{e.Exception}",
-            "Secure File Eraser 오류",
+            "TraceZero 오류",
             MessageBoxButton.OK,
             MessageBoxImage.Error);
         e.Handled = true;
