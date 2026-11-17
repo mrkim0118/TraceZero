@@ -76,7 +76,7 @@ dotnet test tests\TraceZero.Tests
 ## 설치 파일 만들기
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File scripts\Publish-Velopack.ps1 -Version 1.1.6
+powershell -ExecutionPolicy Bypass -File scripts\Publish-Velopack.ps1 -Version 1.2.0
 ```
 
 설치 파일은 .NET 런타임을 포함하지 않으므로, 설치할 PC에 .NET 8 Desktop Runtime x64가 있어야 합니다. 릴리스 패키지에는 PDB 디버그 기호가 들어가지 않습니다.

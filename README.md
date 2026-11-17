@@ -76,7 +76,7 @@ dotnet test tests\TraceZero.Tests
 ## Build installer
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File scripts\Publish-Velopack.ps1 -Version 1.1.6
+powershell -ExecutionPolicy Bypass -File scripts\Publish-Velopack.ps1 -Version 1.2.0
 ```
 
 The installer is framework-dependent and requires the .NET 8 Desktop Runtime x64 on the target PC. Release packages do not include PDB debug symbols.

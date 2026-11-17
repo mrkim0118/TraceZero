@@ -14,9 +14,9 @@
     <Product>TraceZero</Product>
     <Title>TraceZero</Title>
     <Description>Best-effort secure file deletion utility for Windows.</Description>
-    <Version>1.1.6</Version>
-    <AssemblyVersion>1.1.6.0</AssemblyVersion>
-    <FileVersion>1.1.6.0</FileVersion>
+    <Version>1.2.0</Version>
+    <AssemblyVersion>1.2.0.0</AssemblyVersion>
+    <FileVersion>1.2.0.0</FileVersion>
     <ApplicationIcon>Assets\TraceZero.ico</ApplicationIcon>
   </PropertyGroup>
 
