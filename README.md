@@ -1,6 +1,13 @@
-# TraceZero
+<p align="center">
+  <img src="Assets/TraceZero.png" alt="TraceZero icon" width="112" />
+</p>
 
-Windows WPF utility for best-effort secure deletion of multiple files.
+<h1 align="center">TraceZero</h1>
+
+<p align="center">
+  Windows utility that securely erases files so they cannot be recovered.<br />
+  <b>English</b> | <a href="README.ko.md">한국어</a>
+</p>
 
 **Author:** Manggdy
 
@@ -19,22 +26,35 @@ Windows WPF utility for best-effort secure deletion of multiple files.
 
 ## Features
 
-- Select multiple files at once with the file picker.
-- Drag and drop files or folders into the window.
+- Select multiple files at once, or drag and drop files and folders into the window.
 - Overwrite file contents (up to the end of the last cluster) with one random pass before deletion (NIST SP 800-88).
 - Clean NTFS alternate data streams, timestamps, and file size metadata.
+- Obfuscate the file name multiple times before the final delete.
 - Remove only the link for symbolic links; never follow junctions when scanning dropped folders.
 - Flag compressed, encrypted, and sparse files whose old data may remain in free space.
 - Optional trace cleanup with one UAC prompt: delete shadow copies, delete the USN journal, and TRIM the SSD.
 - Erase the matching Explorer Recent shortcut; warn about cloud-synced folders.
 - Wipe free space on a selected drive, including free NTFS MFT records.
-- Obfuscate the file name multiple times before the final delete.
-- Check for Velopack updates from the installed app.
-- Review live progress and export the deletion log.
+- Compact window with live progress, status per file, and an exportable log.
+- Korean and English UI.
+- Velopack auto-update for the installed app.
+
+## Verification
+
+A 2 MB test file filled with a unique marker was erased, then the clusters it used were read directly from the raw volume (bypassing every cache), the same way recovery tools look for data.
+
+| Marker copies found | HDD | SSD (NVMe) |
+|---|---|---|
+| Before deletion | 48,770 | 48,770 |
+| After normal Windows delete | 48,770 (fully recoverable) | 48,770 (fully recoverable) |
+| After TraceZero overwrite, before delete | 0 | 0 |
+| After TraceZero erase | 0 | 0 |
+
+This checks what software can read from the drive. It does not cover chip-level SSD forensics; use trace cleanup (TRIM) and full-disk encryption for that.
 
 ## Important note
 
-This app improves on normal deletion, but it cannot promise a strict forensic guarantee of "unrecoverable forever":
+TraceZero improves greatly on normal deletion, but no app can promise a strict forensic guarantee of "unrecoverable forever":
 
 - SSDs remap writes. Run trace cleanup (TRIM) after erasing; full-disk encryption such as BitLocker is the only strong guarantee.
 - Cloud-sync folders keep copies in the service's recycle bin and version history.
@@ -65,5 +85,5 @@ The script creates:
 
 - `artifacts\publish\<version>\win-x64`
 - `artifacts\velopack\Releases`
-- a `Setup.exe` installer
+- a `Setup.exe` installer with the TraceZero icon
 - an `app-defaults.json` pointing to `https://tech.trendarchive.io/Utility/TraceZero/` by default
