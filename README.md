@@ -1,44 +1,32 @@
 <p align="center">
-  <img src="Assets/TraceZero.png" alt="TraceZero icon" width="112" />
+  <img src="Assets/TraceZero.png" width="128" alt="TraceZero icon">
 </p>
 
 <h1 align="center">TraceZero</h1>
 
-<p align="center">
-  Windows utility that securely erases files so they cannot be recovered.<br />
-  <b>English</b> | <a href="README.ko.md">한국어</a>
-</p>
+<p align="center">Windows utility that securely erases files so they cannot be recovered.</p>
 
-**Author:** Manggdy
+<p align="center">Author: <b>Manggdy</b></p>
 
-## Requirements
+<p align="center"><b>English</b> | <a href="README.ko.md">한국어</a></p>
 
-- Windows 10 or 11 (x64)
-- .NET 8 Desktop Runtime x64
-- Administrator rights only for the optional trace cleanup (one UAC prompt)
-
-## Recommended use
-
-1. Add files or drop folders, then click **Start erase**.
-2. Answer **Yes** to trace cleanup to remove shadow copies, the USN journal, and run SSD TRIM. This deletes all System Restore points on that drive.
-3. Run **Wipe free** on the same drive to overwrite traces of earlier deletions. Close other programs first: the drive is briefly full.
-4. On SSDs, keep BitLocker (or other full-disk encryption) on for a strong guarantee.
+TraceZero overwrites a file's contents, cleans its metadata and name, then deletes it. Optional trace cleanup and free-space wiping remove what normal deletion leaves behind.
 
 ## Features
 
-- Select multiple files at once, or drag and drop files and folders into the window.
-- Overwrite file contents (up to the end of the last cluster) with one random pass before deletion (NIST SP 800-88).
-- Clean NTFS alternate data streams, timestamps, and file size metadata.
-- Obfuscate the file name multiple times before the final delete.
-- Remove only the link for symbolic links; never follow junctions when scanning dropped folders.
-- Flag compressed, encrypted, and sparse files whose old data may remain in free space.
-- Optional trace cleanup with one UAC prompt: delete shadow copies, delete the USN journal, and TRIM the SSD.
-- Erase the matching Explorer Recent shortcut; warn about cloud-synced folders.
-- Wipe free space on a selected drive, including free NTFS MFT records.
-- Compact window with live progress, status per file, and an exportable log.
-- Korean and English UI.
+- **Add files**: Select multiple files at once, or drag and drop files and folders into the window.
+- **Overwrite before delete**: Overwrite file contents (up to the end of the last cluster) with one random pass before deletion (NIST SP 800-88).
+- **Metadata cleanup**: Clean NTFS alternate data streams, timestamps, and file size metadata.
+- **Name obfuscation**: Rename the file multiple times before the final delete.
+- **Safe link handling**: Remove only the link for symbolic links; never follow junctions when scanning dropped folders.
+- **Risk flags**: Flag compressed, encrypted, and sparse files whose old data may remain in free space.
+- **Trace cleanup** (optional, one UAC prompt): Delete shadow copies, delete the USN journal, and TRIM the SSD.
+- **Recent items and cloud folders**: Erase the matching Explorer Recent shortcut; warn about cloud-synced folders.
+- **Free-space wipe**: Wipe free space on a selected drive, including free NTFS MFT records.
+- **Progress and log**: Compact window with live progress, status per file, and an exportable log.
+- **Korean / English**: Switch the interface language.
 
-## Verification
+### Verification
 
 A 2 MB test file filled with a unique marker was erased, then the clusters it used were read directly from the raw volume (bypassing every cache), the same way recovery tools look for data.
 
@@ -51,7 +39,26 @@ A 2 MB test file filled with a unique marker was erased, then the clusters it us
 
 This checks what software can read from the drive. It does not cover chip-level SSD forensics; use trace cleanup (TRIM) and full-disk encryption for that.
 
-## Important note
+## Requirements
+
+- Windows 10 or 11 (x64)
+- .NET 8 Desktop Runtime x64
+- Administrator rights only for the optional trace cleanup (one UAC prompt)
+
+## Usage
+
+1. Add files or drop folders, then click **Start erase**.
+2. Answer **Yes** to trace cleanup to remove shadow copies, the USN journal, and run SSD TRIM. This deletes all System Restore points on that drive.
+3. Run **Wipe free** on the same drive to overwrite traces of earlier deletions. Close other programs first: the drive is briefly full.
+4. On SSDs, keep BitLocker (or other full-disk encryption) on for a strong guarantee.
+
+## Data & Settings
+
+| Data | Location |
+|---|---|
+| Startup log | `%LocalAppData%\TechArchive\TraceZero\startup.log` |
+
+## Limitations
 
 TraceZero improves greatly on normal deletion, but no app can promise a strict forensic guarantee of "unrecoverable forever":
 
@@ -60,19 +67,23 @@ TraceZero improves greatly on normal deletion, but no app can promise a strict f
 - Not cleaned: Explorer thumbnail cache (`thumbcache_*.db`, locked by Explorer; use Disk Cleanup > Thumbnails), the Windows Search index, `$LogFile`, pagefile and hiberfil.
 - The free-space MFT pass stops early if a directory index cannot grow while the drive is full.
 
-## Run
+## Build from Source
+
+Requires the .NET 8 SDK.
+
+### Build
 
 ```powershell
 dotnet run --project TraceZero.csproj
 ```
 
-## Test
+### Test
 
 ```powershell
 dotnet test tests\TraceZero.Tests
 ```
 
-## Build installer
+### Release
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File scripts\Publish-Velopack.ps1 -Version 1.2.0
@@ -86,3 +97,21 @@ The script creates:
 - `artifacts\velopack\Releases`
 - a `Setup.exe` installer with the TraceZero icon
 - an `app-defaults.json` pointing to `https://tech.trendarchive.io/Utility/TraceZero/` by default
+
+## Project Layout
+
+| Path | Contents |
+|---|---|
+| `MainWindow.xaml` | Main window (WPF) |
+| `Services/SecureDeleteService.cs` | Overwrite, metadata cleanup and delete |
+| `Services/TraceCleanupService.cs` | Shadow copies, USN journal and TRIM |
+| `Services/FreeSpaceWipeService.cs` | Free-space and MFT wipe |
+| `Services/AppUpdateService.cs` | Velopack update check |
+| `Services/UiTextProvider.cs` | Korean / English UI text |
+| `Models/` | Queue items and progress models |
+| `tests/TraceZero.Tests/` | Tests |
+| `scripts/Publish-Velopack.ps1` | Release packaging |
+
+## Libraries
+
+- [Velopack](https://velopack.io/): installer and updates
