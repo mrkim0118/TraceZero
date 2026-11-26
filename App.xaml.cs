@@ -2,7 +2,6 @@ using System;
 using System.Windows;
 using System.Windows.Threading;
 using TraceZero.Services;
-using Velopack;
 
 namespace TraceZero;
 
@@ -12,8 +11,6 @@ public partial class App : Application
     public static void Main()
     {
         StartupDiagnostics.Log("App.Main entered.");
-        VelopackApp.Build().Run();
-        StartupDiagnostics.Log("Velopack initialization complete.");
 
         var app = new App();
         app.InitializeComponent();

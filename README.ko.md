@@ -43,7 +43,7 @@ TraceZero는 파일 내용을 덮어쓰고, 메타데이터와 이름을 정리�
 ## 요구 사항
 
 - Windows 10 또는 11 (x64)
-- .NET 8 Desktop Runtime x64
+- .NET 8 Desktop Runtime x64 (없으면 설치 프로그램이 내려받아 설치합니다)
 - 관리자 권한은 선택 기능인 흔적 정리에만 필요합니다 (UAC 확인 창 1회)
 
 ## 사용법
@@ -87,16 +87,10 @@ dotnet test tests\TraceZero.Tests
 ### 배포
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File scripts\Publish-Velopack.ps1 -Version 1.2.0
+powershell -ExecutionPolicy Bypass -File scripts\Build-Installer.ps1
 ```
 
-설치 파일은 .NET 런타임을 포함하지 않으므로, 설치할 PC에 .NET 8 Desktop Runtime x64가 있어야 합니다. 릴리스 패키지에는 PDB 디버그 기호가 들어가지 않습니다.
-
-스크립트가 만드는 것:
-
-- `artifacts\publish\<version>\win-x64`
-- `artifacts\velopack\Releases`
-- TraceZero 아이콘이 적용된 `Setup.exe` 설치 파일
+이 스크립트는 앱을 `artifacts\publish`에 게시하고(.NET 런타임 미포함, PDB 제외) `CN=Manggdy` 인증서로 서명한 뒤, [Inno Setup 6](https://jrsoftware.org/isinfo.php)로 `artifacts\installer\TraceZero-Setup-<버전>.exe`를 만듭니다. 버전은 `TraceZero.csproj`의 `<Version>`을 씁니다. 설치 파일은 `C:\Program Files\TraceZero`에 설치되며, .NET 8 Desktop Runtime이 없으면 함께 설치합니다. 인증서 없이 빌드하려면 `-NoSign`을 붙입니다.
 
 ## 프로젝트 구조
 
@@ -110,8 +104,9 @@ powershell -ExecutionPolicy Bypass -File scripts\Publish-Velopack.ps1 -Version 1
 | `Services/UiTextProvider.cs` | 한국어 / 영어 화면 문구 |
 | `Models/` | 대기열 항목과 진행률 모델 |
 | `tests/TraceZero.Tests/` | 테스트 |
-| `scripts/Publish-Velopack.ps1` | 배포 패키지 생성 |
+| `installer/TraceZero.iss` | Inno Setup 설치 스크립트 |
+| `scripts/Build-Installer.ps1` | 릴리스 빌드와 설치 파일 생성 |
 
 ## 사용한 라이브러리
 
-- [Velopack](https://velopack.io/): 설치 프로그램과 업데이트
+- [Inno Setup](https://jrsoftware.org/isinfo.php): 설치 프로그램

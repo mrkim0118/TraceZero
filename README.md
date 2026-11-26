@@ -43,7 +43,7 @@ This checks what software can read from the drive. It does not cover chip-level 
 ## Requirements
 
 - Windows 10 or 11 (x64)
-- .NET 8 Desktop Runtime x64
+- .NET 8 Desktop Runtime x64 (the installer downloads and installs it when it is missing)
 - Administrator rights only for the optional trace cleanup (one UAC prompt)
 
 ## Usage
@@ -87,16 +87,10 @@ dotnet test tests\TraceZero.Tests
 ### Release
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File scripts\Publish-Velopack.ps1 -Version 1.2.0
+powershell -ExecutionPolicy Bypass -File scripts\Build-Installer.ps1
 ```
 
-The installer is framework-dependent and requires the .NET 8 Desktop Runtime x64 on the target PC. Release packages do not include PDB debug symbols.
-
-The script creates:
-
-- `artifacts\publish\<version>\win-x64`
-- `artifacts\velopack\Releases`
-- a `Setup.exe` installer with the TraceZero icon
+The script publishes the app (framework-dependent, without PDB files) to `artifacts\publish`, signs it with the `CN=Manggdy` certificate, and builds `artifacts\installer\TraceZero-Setup-<version>.exe` with [Inno Setup 6](https://jrsoftware.org/isinfo.php). The version comes from `<Version>` in `TraceZero.csproj`. The installer installs to `C:\Program Files\TraceZero` and installs the .NET 8 Desktop Runtime when it is missing. Pass `-NoSign` to build without a certificate.
 
 ## Project Layout
 
@@ -110,8 +104,9 @@ The script creates:
 | `Services/UiTextProvider.cs` | Korean / English UI text |
 | `Models/` | Queue items and progress models |
 | `tests/TraceZero.Tests/` | Tests |
-| `scripts/Publish-Velopack.ps1` | Release packaging |
+| `installer/TraceZero.iss` | Inno Setup installer script |
+| `scripts/Build-Installer.ps1` | Release build and installer packaging |
 
 ## Libraries
 
-- [Velopack](https://velopack.io/): installer and updates
+- [Inno Setup](https://jrsoftware.org/isinfo.php): installer
