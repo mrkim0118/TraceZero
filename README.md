@@ -25,6 +25,7 @@ TraceZero overwrites a file's contents, cleans its metadata and name, then delet
 - **Free-space wipe**: Wipe free space on a selected drive, including free NTFS MFT records.
 - **Progress and log**: Compact window with live progress, status per file, and an exportable log.
 - **Korean / English**: Switch the interface language.
+- **Update check**: On launch, checks the latest GitHub release and asks whether to download and install the new version.
 
 ### Verification
 
@@ -96,7 +97,6 @@ The script creates:
 - `artifacts\publish\<version>\win-x64`
 - `artifacts\velopack\Releases`
 - a `Setup.exe` installer with the TraceZero icon
-- an `app-defaults.json` pointing to `https://tech.trendarchive.io/Utility/TraceZero/` by default
 
 ## Project Layout
 
@@ -106,7 +106,7 @@ The script creates:
 | `Services/SecureDeleteService.cs` | Overwrite, metadata cleanup and delete |
 | `Services/TraceCleanupService.cs` | Shadow copies, USN journal and TRIM |
 | `Services/FreeSpaceWipeService.cs` | Free-space and MFT wipe |
-| `Services/AppUpdateService.cs` | Velopack update check |
+| `Services/GitHubUpdater.cs` | GitHub release update check |
 | `Services/UiTextProvider.cs` | Korean / English UI text |
 | `Models/` | Queue items and progress models |
 | `tests/TraceZero.Tests/` | Tests |

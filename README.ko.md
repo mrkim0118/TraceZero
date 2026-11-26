@@ -25,6 +25,7 @@ TraceZero는 파일 내용을 덮어쓰고, 메타데이터와 이름을 정리�
 - **빈 공간 정리**: 선택한 드라이브의 빈 공간과 NTFS MFT 빈 칸을 덮어씁니다.
 - **진행률과 로그**: 컴팩트한 창에서 진행률, 파일별 상태, 로그(저장 가능)를 보여줍니다.
 - **한국어 / English**: 화면 언어를 전환할 수 있습니다.
+- **업데이트 확인**: 실행할 때 GitHub 최신 릴리스를 확인하고, 새 버전이 있으면 내려받아 설치할지 묻습니다.
 
 ### 복구 테스트 결과
 
@@ -96,7 +97,6 @@ powershell -ExecutionPolicy Bypass -File scripts\Publish-Velopack.ps1 -Version 1
 - `artifacts\publish\<version>\win-x64`
 - `artifacts\velopack\Releases`
 - TraceZero 아이콘이 적용된 `Setup.exe` 설치 파일
-- 기본 업데이트 주소가 `https://tech.trendarchive.io/Utility/TraceZero/`로 지정된 `app-defaults.json`
 
 ## 프로젝트 구조
 
@@ -106,7 +106,7 @@ powershell -ExecutionPolicy Bypass -File scripts\Publish-Velopack.ps1 -Version 1
 | `Services/SecureDeleteService.cs` | 덮어쓰기, 메타데이터 정리, 삭제 |
 | `Services/TraceCleanupService.cs` | 섀도 복사본, USN 저널, TRIM |
 | `Services/FreeSpaceWipeService.cs` | 빈 공간·MFT 덮어쓰기 |
-| `Services/AppUpdateService.cs` | Velopack 업데이트 확인 |
+| `Services/GitHubUpdater.cs` | GitHub 릴리스 업데이트 확인 |
 | `Services/UiTextProvider.cs` | 한국어 / 영어 화면 문구 |
 | `Models/` | 대기열 항목과 진행률 모델 |
 | `tests/TraceZero.Tests/` | 테스트 |

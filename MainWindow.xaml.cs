@@ -9,25 +9,8 @@ using System.Windows.Input;
 using Microsoft.Win32;
 using TraceZero.Models;
 using TraceZero.Services;
-using Velopack;
 
 namespace TraceZero;
-
-internal enum UpdateUiState
-{
-    MissingSource,
-    InvalidSource,
-    Ready,
-    Checking,
-    NotInstalled,
-    UpToDate,
-    UpdateAvailable,
-    Downloading,
-    Downloaded,
-    Installing,
-    Failed,
-    NoPendingUpdate,
-}
 
 public partial class MainWindow : Window, INotifyPropertyChanged
 {
@@ -36,23 +19,16 @@ public partial class MainWindow : Window, INotifyPropertyChanged
     private readonly SecureDeleteService _secureDeleteService = new();
     private readonly FreeSpaceWipeService _freeSpaceWipeService = new();
     private readonly TraceCleanupService _traceCleanupService = new();
-    private readonly AppUpdateService? _appUpdateService;
-    private readonly string _configuredUpdateSource;
     private readonly UiTextProvider _ui = new();
     private CancellationTokenSource? _deletionCts;
     private string _summaryText = string.Empty;
     private string _statusText = string.Empty;
     private string _versionText = string.Empty;
-    private string _updateStatusText = string.Empty;
-    private string _updateSourceText = string.Empty;
     private Visibility _emptyQueueVisibility = Visibility.Visible;
     private double _overallProgress;
     private bool _isDeleting;
     private bool _isCheckingUpdates;
     private bool _startupUpdateCheckPending = true;
-    private UpdateUiState _updateUiState;
-    private string? _updateStateVersion;
-    private string? _updateStateMessage;
 
     public MainWindow()
     {
@@ -62,11 +38,6 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         Files = new ObservableCollection<FileDeletionItem>();
         LogEntries = new ObservableCollection<string>();
 
-        _configuredUpdateSource = AppRuntimeDefaults.GetDefaultUpdateSource();
-        _appUpdateService = TryResolveUpdateSource(_configuredUpdateSource, out var resolvedUpdateSource)
-            ? new AppUpdateService(resolvedUpdateSource)
-            : null;
-
         DataContext = this;
         InitializeComponent();
         StartupDiagnostics.Log("MainWindow InitializeComponent complete.");
@@ -75,17 +46,11 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         Files.CollectionChanged += Files_CollectionChanged;
 
         VersionText = $"v{GetDisplayVersion()}";
-        InitializeUpdateState();
         ApplyLocalizedUi();
         RefreshSummary();
 
         Log(T("LogReady"));
         Log(T("LogSsd"));
-        // Auto update is disabled; see Window_Loaded.
-        // if (_appUpdateService is not null)
-        // {
-        //     Log(T("LogUpdateFeedConfigured", _appUpdateService.UpdateSource));
-        // }
 
         Loaded += (_, _) => StartupDiagnostics.Log("MainWindow Loaded event fired.");
         ContentRendered += (_, _) => StartupDiagnostics.Log("MainWindow ContentRendered event fired.");
@@ -116,18 +81,6 @@ public partial class MainWindow : Window, INotifyPropertyChanged
     {
         get => _versionText;
         private set => SetProperty(ref _versionText, value, nameof(VersionText));
-    }
-
-    public string UpdateStatusText
-    {
-        get => _updateStatusText;
-        private set => SetProperty(ref _updateStatusText, value, nameof(UpdateStatusText));
-    }
-
-    public string UpdateSourceText
-    {
-        get => _updateSourceText;
-        private set => SetProperty(ref _updateSourceText, value, nameof(UpdateSourceText));
     }
 
     public Visibility EmptyQueueVisibility
@@ -162,10 +115,6 @@ public partial class MainWindow : Window, INotifyPropertyChanged
 
     public bool CanCancelDeletion => IsDeleting;
 
-    public bool CanCheckUpdates => !IsDeleting && !_isCheckingUpdates;
-
-    public bool CanApplyDownloadedUpdate => _updateUiState == UpdateUiState.Downloaded && !IsDeleting && !_isCheckingUpdates;
-
     private void Ui_PropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
         ApplyLocalizedUi();
@@ -179,11 +128,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         }
 
         _startupUpdateCheckPending = false;
-
-        // Auto update is disabled until an update feed is hosted. Uncomment to re-enable the startup check.
-        // await Task.Delay(700);
-        // await CheckForUpdatesAsync(silentWhenNoUpdate: true);
-        await Task.CompletedTask;
+        await CheckForUpdateOnStartupAsync();
     }
 
     private void ToggleLanguageButton_Click(object sender, RoutedEventArgs e)
@@ -318,16 +263,6 @@ public partial class MainWindow : Window, INotifyPropertyChanged
     private void CancelDeleteButton_Click(object sender, RoutedEventArgs e)
     {
         _deletionCts?.Cancel();
-    }
-
-    private async void CheckUpdatesButton_Click(object sender, RoutedEventArgs e)
-    {
-        await CheckForUpdatesAsync(silentWhenNoUpdate: false);
-    }
-
-    private void ApplyDownloadedUpdateButton_Click(object sender, RoutedEventArgs e)
-    {
-        ApplyDownloadedUpdate();
     }
 
     private void FileGrid_SelectionChanged(object sender, System.Windows.Controls.SelectionChangedEventArgs e)
@@ -658,164 +593,38 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         }
     }
 
-    private async Task CheckForUpdatesAsync(bool silentWhenNoUpdate)
+    // Asks once per launch when GitHub has a newer release, then runs its setup and closes.
+    private async Task CheckForUpdateOnStartupAsync()
     {
-        if (_isCheckingUpdates || IsDeleting)
+        var release = await GitHubUpdater.FindNewerReleaseAsync();
+        if (release is null || IsDeleting)
         {
             return;
         }
 
-        if (_appUpdateService is null)
+        var prompt = T("UpdateAvailablePrompt", $"v{release.Version}");
+        if (MessageBox.Show(this, prompt, T("UpdateDialogTitle"), MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes)
         {
-            if (!silentWhenNoUpdate)
-            {
-                MessageBox.Show(this, UpdateStatusText, T("UpdateDialogTitle"), MessageBoxButton.OK, MessageBoxImage.Information);
-            }
-
             return;
         }
 
+        // Blocks starting a deletion: the app closes as soon as the setup starts.
         SetUpdateCheckState(true);
-        SetUpdateState(UpdateUiState.Checking);
-
         try
         {
-            var result = await _appUpdateService.CheckForUpdatesAsync();
-            switch (result.Status)
-            {
-                case AppUpdateStatus.NotInstalled:
-                    SetUpdateState(UpdateUiState.NotInstalled);
-                    if (!silentWhenNoUpdate)
-                    {
-                        MessageBox.Show(this, T("UpdateDialogInstalledOnly"), T("UpdateDialogTitle"), MessageBoxButton.OK, MessageBoxImage.Information);
-                    }
-                    break;
-
-                case AppUpdateStatus.UpToDate:
-                    SetUpdateState(UpdateUiState.UpToDate);
-                    if (!silentWhenNoUpdate)
-                    {
-                        MessageBox.Show(this, T("UpdateDialogUpToDate"), T("UpdateDialogTitle"), MessageBoxButton.OK, MessageBoxImage.Information);
-                    }
-                    break;
-
-                case AppUpdateStatus.UpdateAvailable:
-                    SetUpdateState(UpdateUiState.UpdateAvailable, result.Version);
-
-                    if (result.UpdateInfo is null)
-                    {
-                        break;
-                    }
-
-                    var confirmDownload = MessageBox.Show(
-                        this,
-                        T("UpdateAvailablePrompt", result.Version ?? VersionText),
-                        T("UpdateDialogTitle"),
-                        MessageBoxButton.YesNo,
-                        MessageBoxImage.Question);
-
-                    if (confirmDownload == MessageBoxResult.Yes)
-                    {
-                        await DownloadUpdateAsync(result.UpdateInfo, result.Version);
-                    }
-                    break;
-
-                case AppUpdateStatus.Failed:
-                    SetUpdateState(UpdateUiState.Failed, message: result.Message);
-                    if (!silentWhenNoUpdate)
-                    {
-                        MessageBox.Show(this, UpdateStatusText, T("UpdateDialogTitle"), MessageBoxButton.OK, MessageBoxImage.Error);
-                    }
-                    break;
-
-                case AppUpdateStatus.UpdateSourceMissing:
-                    SetUpdateState(UpdateUiState.MissingSource);
-                    break;
-            }
+            await GitHubUpdater.DownloadAndStartSetupAsync(
+                release,
+                new Progress<int>(percent => Title = T("UpdateDownloadingFormat", $"v{release.Version}", percent)));
+            Close();
+        }
+        catch (Exception ex)
+        {
+            Title = T("WindowTitle");
+            MessageBox.Show(this, T("UpdateFailedFormat", ex.Message), T("UpdateDialogTitle"), MessageBoxButton.OK, MessageBoxImage.Error);
         }
         finally
         {
             SetUpdateCheckState(false);
-        }
-    }
-
-    private async Task DownloadUpdateAsync(UpdateInfo updateInfo, string? version)
-    {
-        if (_appUpdateService is null)
-        {
-            return;
-        }
-
-        SetUpdateCheckState(true);
-        SetUpdateState(UpdateUiState.Downloading, version, "0");
-
-        try
-        {
-            var result = await _appUpdateService.DownloadUpdateAsync(
-                updateInfo,
-                progress => Dispatcher.Invoke(() => SetUpdateState(UpdateUiState.Downloading, version, progress.ToString())));
-
-            switch (result.Status)
-            {
-                case AppUpdateStatus.Downloaded:
-                    SetUpdateState(UpdateUiState.Downloaded, result.Version);
-
-                    var applyNow = MessageBox.Show(
-                        this,
-                        T("UpdateDownloadedPrompt", result.Version ?? VersionText),
-                        T("UpdateDialogTitle"),
-                        MessageBoxButton.YesNo,
-                        MessageBoxImage.Question);
-
-                    if (applyNow == MessageBoxResult.Yes)
-                    {
-                        ApplyDownloadedUpdate();
-                    }
-                    break;
-
-                case AppUpdateStatus.NotInstalled:
-                    SetUpdateState(UpdateUiState.NotInstalled);
-                    break;
-
-                case AppUpdateStatus.Failed:
-                    SetUpdateState(UpdateUiState.Failed, message: result.Message);
-                    MessageBox.Show(this, UpdateStatusText, T("UpdateDialogTitle"), MessageBoxButton.OK, MessageBoxImage.Error);
-                    break;
-            }
-        }
-        finally
-        {
-            SetUpdateCheckState(false);
-        }
-    }
-
-    private void ApplyDownloadedUpdate()
-    {
-        if (_appUpdateService is null)
-        {
-            return;
-        }
-
-        var result = _appUpdateService.ApplyDownloadedUpdateAndRestart();
-        switch (result.Status)
-        {
-            case AppUpdateStatus.Installing:
-                SetUpdateState(UpdateUiState.Installing, result.Version);
-                break;
-
-            case AppUpdateStatus.NotInstalled:
-                SetUpdateState(UpdateUiState.NotInstalled);
-                MessageBox.Show(this, T("UpdateDialogInstalledOnly"), T("UpdateDialogTitle"), MessageBoxButton.OK, MessageBoxImage.Information);
-                break;
-
-            case AppUpdateStatus.Failed:
-                SetUpdateState(UpdateUiState.Failed, message: result.Message);
-                MessageBox.Show(this, UpdateStatusText, T("UpdateDialogTitle"), MessageBoxButton.OK, MessageBoxImage.Error);
-                break;
-
-            default:
-                SetUpdateState(UpdateUiState.NoPendingUpdate);
-                break;
         }
     }
 
@@ -1001,59 +810,6 @@ public partial class MainWindow : Window, INotifyPropertyChanged
 
         RefreshItemStatusTexts();
         RefreshSummary();
-        RefreshUpdateStatusText();
-    }
-
-    private void InitializeUpdateState()
-    {
-        if (string.IsNullOrWhiteSpace(_configuredUpdateSource))
-        {
-            _updateUiState = UpdateUiState.MissingSource;
-        }
-        else if (_appUpdateService is null)
-        {
-            _updateUiState = UpdateUiState.InvalidSource;
-        }
-        else
-        {
-            _updateUiState = UpdateUiState.Ready;
-        }
-
-        RefreshUpdateStatusText();
-    }
-
-    private void SetUpdateState(UpdateUiState state, string? version = null, string? message = null)
-    {
-        _updateUiState = state;
-        _updateStateVersion = version;
-        _updateStateMessage = message;
-        RefreshUpdateStatusText();
-        NotifyCommandStateChanged();
-    }
-
-    private void RefreshUpdateStatusText()
-    {
-        UpdateStatusText = _updateUiState switch
-        {
-            UpdateUiState.MissingSource => T("UpdateMissingSource"),
-            UpdateUiState.InvalidSource => T("UpdateInvalidSource"),
-            UpdateUiState.Ready => T("UpdateReady"),
-            UpdateUiState.Checking => T("UpdateChecking"),
-            UpdateUiState.NotInstalled => T("UpdateInstalledOnly"),
-            UpdateUiState.UpToDate => T("UpdateUpToDate"),
-            UpdateUiState.UpdateAvailable => T("UpdateAvailableFormat", _updateStateVersion ?? VersionText),
-            UpdateUiState.Downloading => T("UpdateDownloadingFormat", _updateStateVersion ?? VersionText, _updateStateMessage ?? "0"),
-            UpdateUiState.Downloaded => T("UpdateDownloadedFormat", _updateStateVersion ?? VersionText),
-            UpdateUiState.Installing => T("UpdateInstallingFormat", _updateStateVersion ?? VersionText),
-            UpdateUiState.Failed => T("UpdateFailedFormat", _updateStateMessage ?? "Unknown error"),
-            UpdateUiState.NoPendingUpdate => T("UpdateNoPending"),
-            _ => T("UpdateReady"),
-        };
-
-        var source = _appUpdateService?.UpdateSource ?? _configuredUpdateSource;
-        UpdateSourceText = string.IsNullOrWhiteSpace(source)
-            ? T("UpdateSourceLabel")
-            : $"{T("UpdateSourceLabel")}: {source}";
     }
 
     private void SetUpdateCheckState(bool value)
@@ -1072,8 +828,6 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         OnPropertyChanged(nameof(CanEditQueue));
         OnPropertyChanged(nameof(CanStartDeletion));
         OnPropertyChanged(nameof(CanCancelDeletion));
-        OnPropertyChanged(nameof(CanCheckUpdates));
-        OnPropertyChanged(nameof(CanApplyDownloadedUpdate));
     }
 
     private void ApplyDeletionProgress(FileDeletionItem item, SecureDeleteProgress report)
@@ -1159,43 +913,6 @@ public partial class MainWindow : Window, INotifyPropertyChanged
     private void OnPropertyChanged(string propertyName)
     {
         PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
-    }
-
-    private static bool TryResolveUpdateSource(string input, out string source)
-    {
-        source = string.Empty;
-        if (string.IsNullOrWhiteSpace(input))
-        {
-            return false;
-        }
-
-        if (Uri.TryCreate(input, UriKind.Absolute, out var uri))
-        {
-            if (string.Equals(uri.Scheme, Uri.UriSchemeHttp, StringComparison.OrdinalIgnoreCase) ||
-                string.Equals(uri.Scheme, Uri.UriSchemeHttps, StringComparison.OrdinalIgnoreCase))
-            {
-                source = uri.AbsoluteUri;
-                return true;
-            }
-
-            if (string.Equals(uri.Scheme, Uri.UriSchemeFile, StringComparison.OrdinalIgnoreCase))
-            {
-                source = uri.LocalPath;
-                return true;
-            }
-        }
-
-        try
-        {
-            source = Path.IsPathRooted(input)
-                ? Path.GetFullPath(input)
-                : Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, input));
-            return true;
-        }
-        catch
-        {
-            return false;
-        }
     }
 
     private static string GetDisplayVersion()

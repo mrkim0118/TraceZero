@@ -8,7 +8,6 @@ param(
     [string]$Configuration = "Release",
     [string]$MainExe = "TraceZero.exe",
     [string]$Authors = "Manggdy",
-    [string]$DefaultUpdateSource = "https://tech.trendarchive.io/Utility/TraceZero/",
     [string]$PublishDir = "",
     [string]$OutputDir = "",
     [string]$ReleaseNotes = "",
@@ -99,7 +98,6 @@ $publishDirPath = Resolve-FullPath -BasePath $repoRoot -Value $PublishDir
 $outputDirPath = Resolve-FullPath -BasePath $repoRoot -Value $OutputDir
 $releaseNotesPath = Resolve-FullPath -BasePath $repoRoot -Value $ReleaseNotes
 $assemblyVersion = Convert-ToAssemblyVersion -SemanticVersion $Version
-$defaultsFilePath = Join-Path $publishDirPath "app-defaults.json"
 
 New-Item -ItemType Directory -Force -Path $publishDirPath | Out-Null
 New-Item -ItemType Directory -Force -Path $outputDirPath | Out-Null
@@ -148,14 +146,6 @@ try {
     if ($LASTEXITCODE -ne 0) {
         throw "dotnet publish failed."
     }
-
-    if ([string]::IsNullOrWhiteSpace($DefaultUpdateSource)) {
-        $DefaultUpdateSource = $outputDirPath
-    }
-
-    @{
-        DefaultUpdateSource = $DefaultUpdateSource
-    } | ConvertTo-Json | Set-Content -Path $defaultsFilePath -Encoding UTF8
 
     Get-ChildItem -LiteralPath $publishDirPath -Filter "*.pdb" -File -ErrorAction SilentlyContinue |
         Remove-Item -Force -ErrorAction SilentlyContinue
@@ -208,4 +198,3 @@ Write-Host ""
 Write-Host "Velopack release complete."
 Write-Host "Publish files : $publishDirPath"
 Write-Host "Release feed  : $outputDirPath"
-Write-Host "Update source : $DefaultUpdateSource"
